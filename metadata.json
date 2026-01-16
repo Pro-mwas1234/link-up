@@ -1,0 +1,8 @@
+{
+  "name": "LinkUp - Modern Hookup Discovery",
+  "description": "A sleek, Tinder-inspired discovery and messaging app featuring swiping, individual/group chats, and media sharing.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
