@@ -4,27 +4,7 @@ import { User, Message } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export const generateVirtualPeers = async (count: number = 5): Promise<User[]> => {
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Generate ${count} diverse and interesting user profiles for a casual hookup app. 
-      Return them as a JSON array of objects with these fields: 
-      id (string, e.g. "ai-1"), name (string), age (number 18-45), bio (string), preference (one of: 'Tonight', 'FWB', 'Discrete', 'Short Term', 'Right Now'), media (array with one image URL from https://images.unsplash.com/photo-...).
-      Ensure bios are bold, catchy and fit a casual vibe.`,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
-    
-    const text = response.text;
-    if (!text) return [];
-    return JSON.parse(text);
-  } catch (error) {
-    console.error("Gemini Peer Generation Error:", error);
-    return [];
-  }
-};
+// generateVirtualPeers removed per user request: "never create demo users remove them all"
 
 export const getAIChatResponse = async (userBio: string, chatHistory: Message[], nextMessage: string): Promise<string> => {
   try {
