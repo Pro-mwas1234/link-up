@@ -37,6 +37,7 @@ const App: React.FC = () => {
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [typingStatuses, setTypingStatuses] = useState<Record<string, Record<string, boolean>>>({});
   const [isCloudConnected, setIsCloudConnected] = useState(false);
+  const [onlineCount, setOnlineCount] = useState(0);
   const [chats, setChats] = useState<Chat[]>([]);
   
   const [toast, setToast] = useState<{ name: string; message: string; avatar: string; chatId: string } | null>(null);
@@ -60,6 +61,9 @@ const App: React.FC = () => {
       // Initialize Real-time P2P link
       cloudService.init(authState.user.id).then(() => {
         setIsCloudConnected(true);
+        // Instant broadcast
+        cloudService.publishProfile(authState.user!);
+        
         // Connect to existing chat partners
         const userChats = storageService.getChatsForUser(authState.user!.id);
         userChats.forEach(c => {
@@ -67,6 +71,11 @@ const App: React.FC = () => {
           if (otherId) cloudService.connectToPeer(otherId);
         });
       });
+
+      // Update online counter periodically
+      const countInterval = setInterval(() => {
+        setOnlineCount(cloudService.onlineCount);
+      }, 5000);
 
       cloudService.onMessage((chatId, message) => {
         storageService.saveMessage(chatId, message);
@@ -92,6 +101,8 @@ const App: React.FC = () => {
           [chatId]: { ...(prev[chatId] || {}), [userId]: isTyping }
         }));
       });
+
+      return () => clearInterval(countInterval);
     }
   }, [authState.isAuthenticated, authState.user]);
 
@@ -106,7 +117,7 @@ const App: React.FC = () => {
   const handleLogin = (user: User) => {
     localStorage.setItem('linkup_session_userid', user.id);
     setAuthState({ user, isAuthenticated: true });
-    cloudService.publishProfile(user); // Push to cloud directory
+    cloudService.publishProfile(user); 
   };
 
   const handleLogout = () => {
@@ -159,10 +170,13 @@ const App: React.FC = () => {
               LinkUp
             </h1>
           </div>
-          <div className="flex items-center space-x-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            <span className={isCloudConnected ? 'text-emerald-500' : 'text-rose-500'}>
-              {isCloudConnected ? 'Cloud Active' : 'Connecting...'}
+          <div className="flex flex-col items-end">
+            <span className={`text-[9px] font-black uppercase tracking-widest ${isCloudConnected ? 'text-emerald-500' : 'text-rose-500'}`}>
+              {isCloudConnected ? 'Cloud Active' : 'Offline'}
             </span>
+            {onlineCount > 0 && (
+              <span className="text-[8px] text-slate-500 font-bold uppercase">Live Registry: {onlineCount}</span>
+            )}
           </div>
         </header>
 

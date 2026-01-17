@@ -12,6 +12,8 @@ export interface User {
   location?: string;
   preference?: HookupPreference;
   isVerified?: boolean;
+  // Added lastSeen to track user activity in the global cloud registry
+  lastSeen?: number;
 }
 
 export interface Comment {

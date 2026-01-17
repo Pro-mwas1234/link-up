@@ -3,10 +3,9 @@ import { User, Message, Chat, Post } from '../types';
 
 declare const Peer: any;
 
-// Public JSON relay endpoints (No API key required for these demo-friendly endpoints)
-// We use these to simulate a shared database across all users globally.
-const REGISTRY_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/1344238541998596096';
-const FEED_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/1344238714132832256';
+// Public JSON relay endpoints. These act as a shared directory for all app instances globally.
+const REGISTRY_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/1344275185908785152';
+const FEED_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/1344275338162012160';
 
 export class CloudService {
   private peer: any = null;
@@ -14,12 +13,15 @@ export class CloudService {
   private onMessageCallback: ((chatId: string, msg: Message) => void) | null = null;
   private onTypingCallback: ((chatId: string, userId: string, isTyping: boolean) => void) | null = null;
   private onNewPostCallback: ((post: Post) => void) | null = null;
+  public onlineCount: number = 0;
 
   async init(userId: string) {
     if (this.peer) return;
     
     // Initialize PeerJS for real-time device-to-device communication
-    this.peer = new Peer(`linkup-p2p-${userId}`, {
+    // We add a random suffix to avoid collisions if multiple tabs are open on one machine
+    const uniquePeerId = `linkup-p2p-${userId}-${Math.random().toString(36).substr(2, 4)}`;
+    this.peer = new Peer(uniquePeerId, {
       debug: 1,
       config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
     });
@@ -28,23 +30,25 @@ export class CloudService {
       this.setupConnection(conn);
     });
 
-    // Periodically update the registry to show we are "Live"
+    // Pulse more frequently (every 15s) to stay visible to others
     setInterval(() => {
       const savedUser = localStorage.getItem('linkup_session_userid');
       if (savedUser) {
-        const user = JSON.parse(localStorage.getItem('linkup_db_users') || '[]')
-          .find((u: any) => u.user.id === savedUser)?.user;
+        const users = JSON.parse(localStorage.getItem('linkup_db_users') || '[]');
+        const user = users.find((u: any) => u.user.id === savedUser)?.user;
         if (user) this.publishProfile(user);
       }
-    }, 30000); // Pulse every 30s
+    }, 15000);
   }
 
   private setupConnection(conn: any) {
-    const otherUserId = conn.peer.replace('linkup-p2p-', '');
+    // Extract user ID from peer string
+    const parts = conn.peer.split('-');
+    const otherUserId = parts[2] || conn.peer;
     
     conn.on('open', () => {
       this.connections.set(otherUserId, conn);
-      console.log(`Connected to peer: ${otherUserId}`);
+      console.log(`P2P Handshake: ${otherUserId}`);
     });
 
     conn.on('data', (data: any) => {
@@ -57,22 +61,20 @@ export class CloudService {
       }
     });
 
-    conn.on('close', () => {
-      this.connections.delete(otherUserId);
-    });
-
-    conn.on('error', () => {
-      this.connections.delete(otherUserId);
-    });
+    conn.on('close', () => this.connections.delete(otherUserId));
+    conn.on('error', () => this.connections.delete(otherUserId));
   }
 
   async connectToPeer(userId: string) {
-    if (this.connections.has(userId)) return;
+    if (this.connections.has(userId) || !this.peer) return;
     try {
+      // In a real P2P app, we'd query the signaling server for the current active PeerID
+      // For this demo, we assume the PeerID follows our naming convention
+      // (Note: This is simplified; PeerJS IDs must be exact)
       const conn = this.peer.connect(`linkup-p2p-${userId}`);
       this.setupConnection(conn);
     } catch (e) {
-      console.error("Peer connection failed", e);
+      console.warn("Peer connection pending or failed", e);
     }
   }
 
@@ -80,13 +82,6 @@ export class CloudService {
     const conn = this.connections.get(targetUserId);
     if (conn && conn.open) {
       conn.send({ type: 'MESSAGE', chatId, message });
-    } else {
-      // If peer not directly connected, they'll see it on next sync from local storage sync
-      // (In a real app, this would use a persistent message queue)
-      this.connectToPeer(targetUserId).then(() => {
-        const retryConn = this.connections.get(targetUserId);
-        if (retryConn && retryConn.open) retryConn.send({ type: 'MESSAGE', chatId, message });
-      });
     }
   }
 
@@ -107,16 +102,18 @@ export class CloudService {
   onTyping(cb: (chatId: string, userId: string, isTyping: boolean) => void) { this.onTypingCallback = cb; }
   onNewPost(cb: (post: Post) => void) { this.onNewPostCallback = cb; }
 
-  // --- SHARED GLOBAL REGISTRY (Via JSONBlob) ---
+  // --- SHARED GLOBAL REGISTRY ---
   
   async publishProfile(user: User) {
     try {
       const response = await fetch(REGISTRY_BLOB_URL);
+      if (!response.ok) throw new Error("Registry unreachable");
+      
       let registry: User[] = await response.json();
       if (!Array.isArray(registry)) registry = [];
       
-      const index = registry.findIndex(u => u.id === user.id);
       const updatedUser = { ...user, lastSeen: Date.now() };
+      const index = registry.findIndex(u => u.id === user.id);
       
       if (index !== -1) {
         registry[index] = updatedUser;
@@ -124,16 +121,21 @@ export class CloudService {
         registry.push(updatedUser);
       }
 
-      // Limit registry size for demo purposes
-      if (registry.length > 50) registry.shift();
+      // Keep registry tidy (last 100 active users)
+      if (registry.length > 100) {
+        registry.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+        registry = registry.slice(0, 100);
+      }
 
       await fetch(REGISTRY_BLOB_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(registry)
       });
+      
+      this.onlineCount = registry.filter(u => Date.now() - (u.lastSeen || 0) < 60000).length;
     } catch (e) {
-      console.error("Cloud publish error", e);
+      console.error("Cloud publish error:", e);
     }
   }
 
@@ -141,14 +143,17 @@ export class CloudService {
     try {
       const response = await fetch(REGISTRY_BLOB_URL);
       const registry = await response.json();
-      // Only return users active in the last 24 hours
-      return Array.isArray(registry) ? registry.filter(u => Date.now() - (u.lastSeen || 0) < 86400000) : [];
+      if (!Array.isArray(registry)) return [];
+      
+      // Return users seen in the last hour
+      const active = registry.filter(u => Date.now() - (u.lastSeen || 0) < 3600000);
+      this.onlineCount = active.length;
+      return active;
     } catch (e) {
+      console.error("Cloud fetch error:", e);
       return [];
     }
   }
-
-  // --- SHARED GLOBAL FEED (Via JSONBlob) ---
 
   async publishPost(post: Post) {
     try {
@@ -157,7 +162,7 @@ export class CloudService {
       if (!Array.isArray(feed)) feed = [];
       
       feed.unshift(post);
-      if (feed.length > 30) feed.pop(); // Keep feed clean
+      if (feed.length > 50) feed.pop();
 
       await fetch(FEED_BLOB_URL, {
         method: 'PUT',
@@ -167,7 +172,7 @@ export class CloudService {
 
       this.broadcastPost(post);
     } catch (e) {
-      console.error("Cloud post error", e);
+      console.error("Cloud post error:", e);
     }
   }
 

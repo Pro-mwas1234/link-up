@@ -17,22 +17,30 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
 
   const fetchGlobal = async () => {
     setIsRefreshing(true);
-    const globalUsers = await cloudService.fetchGlobalDiscovery();
-    // Only show other users and shuffle them
-    const filtered = globalUsers
-      .filter(u => u.id !== currentUser.id)
-      .sort(() => Math.random() - 0.5);
-    
-    // Cache them so other parts of the app can resolve their IDs
-    filtered.forEach(u => storageService.cacheCloudUser(u));
-    
-    setUsers(filtered);
-    setCurrentIndex(0);
-    setIsRefreshing(false);
+    try {
+      const globalUsers = await cloudService.fetchGlobalDiscovery();
+      // Filter out self and shuffle
+      const filtered = globalUsers
+        .filter(u => u.id !== currentUser.id)
+        .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+      
+      // Cache profiles locally so chat lists can find them later
+      filtered.forEach(u => storageService.cacheCloudUser(u));
+      
+      setUsers(filtered);
+      setCurrentIndex(0);
+    } catch (e) {
+      console.error("Discovery fetch failed", e);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   useEffect(() => {
     fetchGlobal();
+    // Auto-refresh every 30s to find new people
+    const interval = setInterval(fetchGlobal, 30000);
+    return () => clearInterval(interval);
   }, [currentUser.id]);
 
   const handleSwipe = (direction: 'left' | 'right') => {
@@ -42,7 +50,7 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
     setCurrentIndex(prev => prev + 1);
   };
 
-  if (isRefreshing) {
+  if (isRefreshing && users.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center space-y-6 bg-slate-950">
         <div className="relative">
@@ -52,8 +60,8 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
           <div className="absolute inset-0 bg-pink-500 blur-3xl opacity-10 animate-pulse" />
         </div>
         <div className="text-center">
-          <p className="text-sm font-black text-white uppercase tracking-widest animate-pulse">Scanning Cloud</p>
-          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest">Searching for active devices...</p>
+          <p className="text-sm font-black text-white uppercase tracking-widest animate-pulse">Syncing Cloud</p>
+          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest">Pinging global registry...</p>
         </div>
       </div>
     );
@@ -62,19 +70,23 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
   if (users.length === 0 || currentIndex >= users.length) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-8 bg-slate-950">
-        <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center border border-white/5 relative overflow-hidden">
-           <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/20 to-transparent" />
-           <svg className="w-10 h-10 text-slate-700" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" clipRule="evenodd" /></svg>
+        <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center border border-white/5 relative overflow-hidden group">
+           <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/20 to-transparent group-hover:scale-110 transition-transform" />
+           <svg className="w-10 h-10 text-slate-700 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" clipRule="evenodd" /></svg>
         </div>
-        <div>
-          <h2 className="text-3xl font-black text-white tracking-tighter">Quiet Night.</h2>
-          <p className="text-slate-500 text-sm mt-3 leading-relaxed">No other devices are currently active in the cloud registry. Try refreshing or come back when the party starts!</p>
+        <div className="space-y-2">
+          <h2 className="text-3xl font-black text-white tracking-tighter">Searching...</h2>
+          <p className="text-slate-500 text-sm leading-relaxed max-w-[250px] mx-auto italic">
+            "Only real devices show up here. If you're alone, open LinkUp on another phone or tab!"
+          </p>
         </div>
         <button 
           onClick={fetchGlobal} 
-          className="px-10 py-4 bg-gradient-to-r from-pink-500 to-rose-600 rounded-2xl font-black text-white shadow-2xl shadow-pink-500/20 active:scale-95 transition-all uppercase tracking-widest text-xs"
+          disabled={isRefreshing}
+          className="px-10 py-4 bg-gradient-to-r from-pink-500 to-rose-600 rounded-2xl font-black text-white shadow-2xl shadow-pink-500/40 active:scale-95 transition-all uppercase tracking-widest text-[10px] disabled:opacity-50 flex items-center space-x-2"
         >
-          Ping Cloud Registry
+          {isRefreshing && <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
+          <span>Refresh Global Pulse</span>
         </button>
       </div>
     );
@@ -90,10 +102,10 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/10 to-transparent" />
           
           <div className="absolute top-8 left-8 right-8 flex items-center justify-between">
-             <div className="px-4 py-2 bg-emerald-500 text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg border border-white/20 animate-pulse">Live Peer</div>
-             <div className="flex items-center space-x-2 text-[10px] text-white/60 font-black uppercase tracking-widest">
+             <div className="px-4 py-2 bg-emerald-500/80 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg border border-white/20">Global Pulse</div>
+             <div className="flex items-center space-x-2 text-[10px] text-white/60 font-black uppercase tracking-widest bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-md">
                 <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
-                <span>Online</span>
+                <span>Live Now</span>
              </div>
           </div>
 
@@ -103,7 +115,7 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
                <span className="text-3xl font-light text-white/50">{profile.age}</span>
              </div>
              <p className="mt-3 text-pink-400 text-xs font-black uppercase tracking-[0.2em]">{profile.preference || 'Short Term'}</p>
-             <p className="mt-6 text-slate-300 text-sm font-medium leading-relaxed line-clamp-2 max-w-[80%]">{profile.bio}</p>
+             <p className="mt-6 text-slate-300 text-sm font-medium leading-relaxed line-clamp-2 max-w-[85%]">{profile.bio}</p>
           </div>
         </div>
       </div>
