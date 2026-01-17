@@ -1,13 +1,17 @@
 
+export type HookupPreference = 'Right Now' | 'Tonight' | 'FWB' | 'Discrete' | 'Short Term';
+
 export interface User {
   id: string;
   name: string;
   age: number;
   bio: string;
-  media: string[]; // Still used for profile photos
+  media: string[];
   isVideo?: boolean[];
   distance?: string;
   location?: string;
+  preference?: HookupPreference;
+  isVerified?: boolean;
 }
 
 export interface Comment {
@@ -24,7 +28,7 @@ export interface Post {
   type: 'standalone' | 'carousel';
   media: string[];
   isVideo: boolean[];
-  likes: string[]; // Array of userIds who liked
+  likes: string[];
   comments: Comment[];
   timestamp: number;
 }

@@ -1,5 +1,6 @@
 
 import { User, Chat, Message, Post, Comment } from '../types';
+import { MOCK_USERS } from '../constants';
 
 const USERS_KEY = 'linkup_db_users';
 const CHATS_KEY = 'linkup_db_chats_global';
@@ -12,6 +13,19 @@ export interface RegisteredUserRecord {
 }
 
 export const storageService = {
+  // --- INITIALIZATION ---
+  init(): void {
+    const existing = localStorage.getItem(USERS_KEY);
+    if (!existing || JSON.parse(existing).length === 0) {
+      const initialRecords: RegisteredUserRecord[] = MOCK_USERS.map(u => ({
+        email: `${u.name.toLowerCase()}@example.com`,
+        password: 'password123',
+        user: u
+      }));
+      localStorage.setItem(USERS_KEY, JSON.stringify(initialRecords));
+    }
+  },
+
   // --- USER OPERATIONS ---
   registerUser(email: string, password: string, user: User): void {
     const users = this.getAllUsers();
@@ -84,6 +98,29 @@ export const storageService = {
     }
     chats.push(chat);
     localStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+  },
+
+  // --- DATA TRANSFER (CROSS-DEVICE SYNC) ---
+  exportDatabase(): string {
+    const data = {
+      users: localStorage.getItem(USERS_KEY),
+      chats: localStorage.getItem(CHATS_KEY),
+      posts: localStorage.getItem(POSTS_KEY)
+    };
+    return btoa(encodeURIComponent(JSON.stringify(data)));
+  },
+
+  importDatabase(encodedData: string): boolean {
+    try {
+      const decoded = JSON.parse(decodeURIComponent(atob(encodedData)));
+      if (decoded.users) localStorage.setItem(USERS_KEY, decoded.users);
+      if (decoded.chats) localStorage.setItem(CHATS_KEY, decoded.chats);
+      if (decoded.posts) localStorage.setItem(POSTS_KEY, decoded.posts);
+      return true;
+    } catch (e) {
+      console.error("Import failed", e);
+      return false;
+    }
   },
 
   // --- POST OPERATIONS ---

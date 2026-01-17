@@ -7,6 +7,7 @@
   <title>LinkUp | Direct Connections</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ec4899'%3E%3Cpath d='M19.457 15.894c0-5.211-4.038-9.047-4.038-9.047s-.42-.393-.42.182c0 .447.051 1.642.051 2.312 0 .201-.012.397-.033.585-1.583-4.304-4.595-7.399-4.595-7.399s-.312-.294-.312.137c0 .662.161 2.348.161 3.588 0 .172-.006.339-.016.5-1.702-2.562-4.124-4.377-4.124-4.377s-.254-.231-.254.102c0 .511.102 1.944.102 3.111 0 1.167-1.768 2.495-2.125 4.831-.464 3.036.75 6.074 3.041 8.013C8.612 20.584 11.232 21 13.06 21c3.158 0 5.897-1.996 6.397-5.106z'/%3E%3C/svg%3E">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -49,6 +50,14 @@
     }
     .animate-pulse-logo {
       animation: pulse-logo 2s infinite ease-in-out;
+    }
+    @keyframes pulse-live {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .animate-live {
+      animation: pulse-live 2s infinite;
     }
   </style>
 <script type="importmap">
