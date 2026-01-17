@@ -34,8 +34,8 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
       // 3. Cache them for storage/messaging lookups
       globalUsers.forEach(u => storageService.cacheCloudUser(u));
 
-      // 4. Set the stack - No AI users are added here anymore.
-      setUsers(globalUsers.sort(() => Math.random() - 0.5));
+      // 4. Set the stack - strictly real users
+      setUsers(globalUsers.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0)));
       setCurrentIndex(0);
     } catch (e) {
       console.error("Discovery error:", e);
@@ -46,8 +46,8 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
 
   useEffect(() => {
     fetchUsers();
-    // Auto-refresh registry stack every 60 seconds
-    const interval = setInterval(fetchUsers, 60000);
+    // Auto-refresh registry stack every 45 seconds to keep it fresh
+    const interval = setInterval(fetchUsers, 45000);
     return () => clearInterval(interval);
   }, [currentUser.id]);
 
@@ -89,7 +89,7 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
         setShowSearchModal(false);
         setSearchId('');
       } else {
-        setSearchError('User ID not found. Ensure they are currently online!');
+        setSearchError('User ID not found. They might be offline.');
       }
     } catch (e) {
       setSearchError('Cloud Sync Failed.');
@@ -108,8 +108,8 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
           <div className="absolute inset-0 bg-pink-500 blur-3xl opacity-10 animate-pulse" />
         </div>
         <div className="text-center px-8">
-          <p className="text-sm font-black text-white uppercase tracking-widest animate-pulse italic">Real-Time Sync</p>
-          <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-[0.2em]">Pinging global P2P nodes...</p>
+          <p className="text-sm font-black text-white uppercase tracking-widest animate-pulse italic">Scanning Global Network</p>
+          <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-[0.2em]">Locating real nodes across the pulse...</p>
         </div>
       </div>
     );
@@ -123,12 +123,15 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
            <svg className="w-10 h-10 text-slate-700 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" clipRule="evenodd" /></svg>
         </div>
         <div className="space-y-3">
-          <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic">Pulse is Flat.</h2>
-          <p className="text-slate-500 text-xs leading-relaxed max-w-[200px] mx-auto italic">No other real users are online right now. Invite someone or use their Cloud ID to connect directly!</p>
+          <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic text-center">Ghost Town.</h2>
+          <p className="text-slate-500 text-xs leading-relaxed max-w-[200px] mx-auto italic">No other live users detected. This network is 100% real-time P2P. Invite a friend or refresh the pulse!</p>
         </div>
         <div className="flex flex-col space-y-3 w-full max-w-[240px]">
-          <button onClick={fetchUsers} className="w-full py-5 bg-slate-900 border border-slate-800 rounded-3xl font-black text-white uppercase tracking-widest text-[10px] active:scale-95 transition-all hover:bg-slate-800">Scan Global Registry</button>
-          <button onClick={() => setShowSearchModal(true)} className="w-full py-5 bg-gradient-to-r from-pink-500 to-rose-600 rounded-3xl font-black text-white shadow-xl shadow-pink-500/20 uppercase tracking-widest text-[10px] active:scale-95 transition-all">Direct Link Search</button>
+          <button onClick={fetchUsers} disabled={isRefreshing} className="w-full py-5 bg-slate-900 border border-slate-800 rounded-3xl font-black text-white uppercase tracking-widest text-[10px] active:scale-95 transition-all hover:bg-slate-800 flex items-center justify-center space-x-2">
+            {isRefreshing && <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
+            <span>Sync Discovery Blob</span>
+          </button>
+          <button onClick={() => setShowSearchModal(true)} className="w-full py-5 bg-gradient-to-r from-pink-500 to-rose-600 rounded-3xl font-black text-white shadow-xl shadow-pink-500/20 uppercase tracking-widest text-[10px] active:scale-95 transition-all">Direct ID Search</button>
         </div>
       </div>
     );
@@ -136,6 +139,9 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
 
   const profile = users[currentIndex];
   const nextProfile = users[currentIndex + 1];
+  
+  const lastActiveSecs = Math.floor((Date.now() - (profile.lastSeen || 0)) / 1000);
+  const isActiveNow = lastActiveSecs < 60;
 
   const getCardTransform = () => {
     if (exitDirection === 'right') return 'translate-x-[150%] rotate-[30deg] opacity-0';
@@ -151,10 +157,10 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
            <div className="bg-slate-900 w-full max-w-sm rounded-[3rem] p-10 border border-white/10 shadow-3xl space-y-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 blur-3xl rounded-full" />
               <div className="flex justify-between items-center relative z-10">
-                 <h3 className="text-2xl font-black text-white tracking-tighter italic">Direct Connect</h3>
+                 <h3 className="text-2xl font-black text-white tracking-tighter italic">Connect Node</h3>
                  <button onClick={() => setShowSearchModal(false)} className="text-slate-500 hover:text-white transition-colors"><svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium relative z-10">Enter a private Cloud ID to bridge the P2P connection instantly.</p>
+              <p className="text-xs text-slate-400 leading-relaxed font-medium relative z-10">Bridge the link by entering a private Cloud ID from another device.</p>
               <div className="space-y-3 relative z-10">
                 <input 
                   type="text" 
@@ -172,7 +178,7 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
                 disabled={isRefreshing}
                 className="w-full py-5 bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-3xl font-black uppercase tracking-widest text-[10px] shadow-2xl shadow-pink-500/30 active:scale-95 transition-all disabled:opacity-50 relative z-10"
               >
-                {isRefreshing ? 'Pinging Cloud...' : 'Establish Link'}
+                {isRefreshing ? 'Pinging Node...' : 'Establish Handshake'}
               </button>
            </div>
         </div>
@@ -208,8 +214,8 @@ const Discovery: React.FC<DiscoveryProps> = ({ currentUser, onMatch, onViewProfi
 
           <div className="absolute top-8 left-8 right-8 flex items-center justify-between">
              <div className="px-4 py-2 bg-emerald-500 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg border border-white/20 flex items-center space-x-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                <span>Live Peer</span>
+                <span className={`w-1.5 h-1.5 rounded-full bg-white ${isActiveNow ? 'animate-pulse' : 'opacity-40'}`} />
+                <span>{isActiveNow ? 'Live Peer' : `Active ${Math.ceil(lastActiveSecs / 60)}m ago`}</span>
              </div>
              <button onClick={() => setShowSearchModal(true)} className="p-4 bg-black/60 backdrop-blur-md text-white rounded-full border border-white/10 hover:bg-black/80 transition-all hover:scale-110 active:scale-95">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>

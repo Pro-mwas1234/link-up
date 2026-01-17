@@ -58,11 +58,13 @@ const App: React.FC = () => {
   useEffect(() => {
     if (authState.isAuthenticated && authState.user) {
       refreshChats();
-      // Initialize Real-time P2P link
+      
+      // Initialize Real-time P2P link and Wait for ID
       cloudService.init(authState.user.id).then(() => {
         setIsCloudConnected(true);
-        // Instant broadcast
+        // Instant broadcast now that we are definitely ready
         cloudService.publishProfile(authState.user!);
+        setOnlineCount(cloudService.onlineCount);
         
         // Connect to existing chat partners
         const userChats = storageService.getChatsForUser(authState.user!.id);
@@ -75,7 +77,7 @@ const App: React.FC = () => {
       // Update online counter periodically
       const countInterval = setInterval(() => {
         setOnlineCount(cloudService.onlineCount);
-      }, 5000);
+      }, 10000);
 
       cloudService.onMessage((chatId, message) => {
         storageService.saveMessage(chatId, message);
@@ -102,7 +104,9 @@ const App: React.FC = () => {
         }));
       });
 
-      return () => clearInterval(countInterval);
+      return () => {
+        clearInterval(countInterval);
+      };
     }
   }, [authState.isAuthenticated, authState.user]);
 
@@ -117,13 +121,13 @@ const App: React.FC = () => {
   const handleLogin = (user: User) => {
     localStorage.setItem('linkup_session_userid', user.id);
     setAuthState({ user, isAuthenticated: true });
-    cloudService.publishProfile(user); 
   };
 
   const handleLogout = () => {
     localStorage.removeItem('linkup_session_userid');
     setAuthState({ user: null, isAuthenticated: false });
     setIsCloudConnected(false);
+    setOnlineCount(0);
   };
 
   const handleMatch = (matchedUser: User) => {
@@ -172,10 +176,10 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col items-end">
             <span className={`text-[9px] font-black uppercase tracking-widest ${isCloudConnected ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {isCloudConnected ? 'Cloud Active' : 'Offline'}
+              {isCloudConnected ? 'Cloud Active' : 'Connecting...'}
             </span>
             {onlineCount > 0 && (
-              <span className="text-[8px] text-slate-500 font-bold uppercase">Live Registry: {onlineCount}</span>
+              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">Peers Nearby: {onlineCount}</span>
             )}
           </div>
         </header>
