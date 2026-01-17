@@ -3,7 +3,6 @@ import { User, Message, Chat, Post } from '../types';
 
 declare const Peer: any;
 
-// Public JSON relay endpoints. These act as a shared directory for all app instances globally.
 const REGISTRY_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/1344275185908785152';
 const FEED_BLOB_URL = 'https://jsonblob.com/api/jsonBlob/1344275338162012160';
 
@@ -18,19 +17,29 @@ export class CloudService {
   async init(userId: string) {
     if (this.peer) return;
     
-    // Initialize PeerJS for real-time device-to-device communication
-    // We add a random suffix to avoid collisions if multiple tabs are open on one machine
-    const uniquePeerId = `linkup-p2p-${userId}-${Math.random().toString(36).substr(2, 4)}`;
-    this.peer = new Peer(uniquePeerId, {
+    // Stable Peer ID for direct discovery
+    const stablePeerId = `linkup-p2p-${userId}`;
+    this.peer = new Peer(stablePeerId, {
       debug: 1,
       config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
+    });
+
+    this.peer.on('open', (id: string) => {
+      console.log('PeerJS Active with ID:', id);
     });
 
     this.peer.on('connection', (conn: any) => {
       this.setupConnection(conn);
     });
 
-    // Pulse more frequently (every 15s) to stay visible to others
+    this.peer.on('error', (err: any) => {
+      if (err.type === 'unavailable-id') {
+        // If ID is taken, likely another tab is open. Append random suffix.
+        this.peer = new Peer(`${stablePeerId}-${Math.random().toString(36).substr(2, 4)}`);
+      }
+    });
+
+    // Aggressive pulsing to keep global registry fresh (every 10s)
     setInterval(() => {
       const savedUser = localStorage.getItem('linkup_session_userid');
       if (savedUser) {
@@ -38,17 +47,15 @@ export class CloudService {
         const user = users.find((u: any) => u.user.id === savedUser)?.user;
         if (user) this.publishProfile(user);
       }
-    }, 15000);
+    }, 10000);
   }
 
   private setupConnection(conn: any) {
-    // Extract user ID from peer string
     const parts = conn.peer.split('-');
-    const otherUserId = parts[2] || conn.peer;
+    const otherUserId = parts[parts.length - 1] || conn.peer;
     
     conn.on('open', () => {
       this.connections.set(otherUserId, conn);
-      console.log(`P2P Handshake: ${otherUserId}`);
     });
 
     conn.on('data', (data: any) => {
@@ -62,23 +69,20 @@ export class CloudService {
     });
 
     conn.on('close', () => this.connections.delete(otherUserId));
-    conn.on('error', () => this.connections.delete(otherUserId));
   }
 
   async connectToPeer(userId: string) {
-    if (this.connections.has(userId) || !this.peer) return;
+    if (this.connections.has(userId) || !this.peer || userId.startsWith('ai-')) return;
     try {
-      // In a real P2P app, we'd query the signaling server for the current active PeerID
-      // For this demo, we assume the PeerID follows our naming convention
-      // (Note: This is simplified; PeerJS IDs must be exact)
       const conn = this.peer.connect(`linkup-p2p-${userId}`);
       this.setupConnection(conn);
     } catch (e) {
-      console.warn("Peer connection pending or failed", e);
+      console.warn("Peer connection pending...");
     }
   }
 
   sendMessage(targetUserId: string, chatId: string, message: Message) {
+    if (targetUserId.startsWith('ai-')) return;
     const conn = this.connections.get(targetUserId);
     if (conn && conn.open) {
       conn.send({ type: 'MESSAGE', chatId, message });
@@ -86,6 +90,7 @@ export class CloudService {
   }
 
   sendTypingStatus(targetUserId: string, chatId: string, userId: string, isTyping: boolean) {
+    if (targetUserId.startsWith('ai-')) return;
     const conn = this.connections.get(targetUserId);
     if (conn && conn.open) {
       conn.send({ type: 'TYPING', chatId, userId, isTyping });
@@ -102,30 +107,20 @@ export class CloudService {
   onTyping(cb: (chatId: string, userId: string, isTyping: boolean) => void) { this.onTypingCallback = cb; }
   onNewPost(cb: (post: Post) => void) { this.onNewPostCallback = cb; }
 
-  // --- SHARED GLOBAL REGISTRY ---
-  
   async publishProfile(user: User) {
     try {
       const response = await fetch(REGISTRY_BLOB_URL);
-      if (!response.ok) throw new Error("Registry unreachable");
-      
-      let registry: User[] = await response.json();
+      let registry: User[] = response.ok ? await response.json() : [];
       if (!Array.isArray(registry)) registry = [];
       
       const updatedUser = { ...user, lastSeen: Date.now() };
       const index = registry.findIndex(u => u.id === user.id);
       
-      if (index !== -1) {
-        registry[index] = updatedUser;
-      } else {
-        registry.push(updatedUser);
-      }
+      if (index !== -1) registry[index] = updatedUser;
+      else registry.push(updatedUser);
 
-      // Keep registry tidy (last 100 active users)
-      if (registry.length > 100) {
-        registry.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
-        registry = registry.slice(0, 100);
-      }
+      // Clean registry: keep only active users from last 15 minutes
+      registry = registry.filter(u => Date.now() - (u.lastSeen || 0) < 900000);
 
       await fetch(REGISTRY_BLOB_URL, {
         method: 'PUT',
@@ -133,7 +128,7 @@ export class CloudService {
         body: JSON.stringify(registry)
       });
       
-      this.onlineCount = registry.filter(u => Date.now() - (u.lastSeen || 0) < 60000).length;
+      this.onlineCount = registry.length;
     } catch (e) {
       console.error("Cloud publish error:", e);
     }
@@ -141,16 +136,12 @@ export class CloudService {
 
   async fetchGlobalDiscovery(): Promise<User[]> {
     try {
-      const response = await fetch(REGISTRY_BLOB_URL);
+      const response = await fetch(`${REGISTRY_BLOB_URL}?nocache=${Date.now()}`);
       const registry = await response.json();
       if (!Array.isArray(registry)) return [];
-      
-      // Return users seen in the last hour
-      const active = registry.filter(u => Date.now() - (u.lastSeen || 0) < 3600000);
-      this.onlineCount = active.length;
-      return active;
+      this.onlineCount = registry.length;
+      return registry;
     } catch (e) {
-      console.error("Cloud fetch error:", e);
       return [];
     }
   }
@@ -158,9 +149,8 @@ export class CloudService {
   async publishPost(post: Post) {
     try {
       const response = await fetch(FEED_BLOB_URL);
-      let feed: Post[] = await response.json();
+      let feed: Post[] = response.ok ? await response.json() : [];
       if (!Array.isArray(feed)) feed = [];
-      
       feed.unshift(post);
       if (feed.length > 50) feed.pop();
 
@@ -169,16 +159,13 @@ export class CloudService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(feed)
       });
-
       this.broadcastPost(post);
-    } catch (e) {
-      console.error("Cloud post error:", e);
-    }
+    } catch (e) {}
   }
 
   async fetchGlobalPosts(): Promise<Post[]> {
     try {
-      const response = await fetch(FEED_BLOB_URL);
+      const response = await fetch(`${FEED_BLOB_URL}?nocache=${Date.now()}`);
       const feed = await response.json();
       return Array.isArray(feed) ? feed : [];
     } catch (e) {

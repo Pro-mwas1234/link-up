@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Chat, Message } from '../../types';
-import { suggestIcebreaker } from '../../services/geminiService';
+import { suggestIcebreaker, getAIChatResponse } from '../../services/geminiService';
 import { storageService } from '../../services/storageService';
 import { cloudService } from '../../services/cloudService';
 
@@ -14,29 +14,31 @@ interface ChatRoomProps {
 
 const ChatRoom: React.FC<ChatRoomProps> = ({ chat, currentUser, onBack, typingStatus }) => {
   const [inputText, setInputText] = useState('');
+  const [isAIResponding, setIsAIResponding] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const otherUserId = chat.participants.find(id => id !== currentUser.id) || '';
   const otherUser = storageService.getUserById(otherUserId);
+  const isAI = otherUserId.startsWith('ai-');
   const messages = chat.messages;
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typingStatus]);
+  }, [messages, typingStatus, isAIResponding]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputText(e.target.value);
-    cloudService.sendTypingStatus(otherUserId, chat.id, currentUser.id, true);
-    
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      cloudService.sendTypingStatus(otherUserId, chat.id, currentUser.id, false);
-    }, 2000);
+    if (!isAI) {
+      cloudService.sendTypingStatus(otherUserId, chat.id, currentUser.id, true);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        cloudService.sendTypingStatus(otherUserId, chat.id, currentUser.id, false);
+      }, 2000);
+    }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputText.trim()) return;
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -46,8 +48,24 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ chat, currentUser, onBack, typingSt
     };
 
     storageService.saveMessage(chat.id, newMessage);
-    cloudService.sendMessage(otherUserId, chat.id, newMessage);
     setInputText('');
+
+    if (isAI) {
+      setIsAIResponding(true);
+      const aiReplyText = await getAIChatResponse(otherUser?.bio || "", messages, inputText);
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        senderId: otherUserId,
+        text: aiReplyText,
+        timestamp: Date.now()
+      };
+      setTimeout(() => {
+        storageService.saveMessage(chat.id, aiMessage);
+        setIsAIResponding(false);
+      }, 1500);
+    } else {
+      cloudService.sendMessage(otherUserId, chat.id, newMessage);
+    }
   };
 
   const handleIcebreaker = async () => {
@@ -64,11 +82,13 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ chat, currentUser, onBack, typingSt
         <div className="ml-2 flex items-center">
           <div className="relative">
             <img src={otherUser?.media[0]} className="w-10 h-10 rounded-full object-cover border border-slate-700" alt="" />
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full animate-live" />
+            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 ${isAI ? 'bg-indigo-500' : 'bg-emerald-500'} border-2 border-slate-900 rounded-full animate-live`} />
           </div>
           <div className="ml-3">
             <h3 className="font-bold text-slate-100 leading-none">{otherUser?.name}</h3>
-            <span className="text-[10px] text-emerald-500 font-medium uppercase tracking-widest">Real-time Connected</span>
+            <span className={`text-[10px] ${isAI ? 'text-indigo-400' : 'text-emerald-500'} font-medium uppercase tracking-widest`}>
+              {isAI ? 'AI Simulation Active' : 'Real-time Connected'}
+            </span>
           </div>
         </div>
       </div>
@@ -87,12 +107,12 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ chat, currentUser, onBack, typingSt
             </div>
           );
         })}
-        {Object.values(typingStatus).some(v => v) && (
+        {(Object.values(typingStatus).some(v => v) || isAIResponding) && (
           <div className="flex justify-start">
              <div className="bg-slate-800 rounded-2xl px-4 py-2 flex space-x-1 items-center">
-                <span className="w-1 h-1 bg-pink-500 rounded-full animate-bounce"></span>
-                <span className="w-1 h-1 bg-pink-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                <span className="w-1 h-1 bg-pink-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                <span className={`w-1 h-1 ${isAI ? 'bg-indigo-500' : 'bg-pink-500'} rounded-full animate-bounce`}></span>
+                <span className={`w-1 h-1 ${isAI ? 'bg-indigo-500' : 'bg-pink-500'} rounded-full animate-bounce [animation-delay:0.2s]`}></span>
+                <span className={`w-1 h-1 ${isAI ? 'bg-indigo-500' : 'bg-pink-500'} rounded-full animate-bounce [animation-delay:0.4s]`}></span>
              </div>
           </div>
         )}
@@ -104,7 +124,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ chat, currentUser, onBack, typingSt
         <div className="flex items-center space-x-2">
           <input 
             type="text" 
-            placeholder="Send a live message..." 
+            placeholder={isAI ? "Chat with Simulation..." : "Send a live message..."} 
             className="flex-1 bg-slate-800 border border-slate-700 rounded-full px-4 py-3 text-sm focus:ring-2 focus:ring-pink-500 outline-none"
             value={inputText}
             onChange={handleInputChange}
