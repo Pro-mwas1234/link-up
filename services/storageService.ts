@@ -1,6 +1,7 @@
 
 import { User, Chat, Message, Post, Comment } from '../types';
 import { MOCK_USERS } from '../constants';
+import { cloudService } from './cloudService';
 
 const USERS_KEY = 'linkup_db_users';
 const CHATS_KEY = 'linkup_db_chats_global';
@@ -133,10 +134,12 @@ export const storageService = {
     return this.getAllPosts().filter(p => p.userId === userId).sort((a, b) => b.timestamp - a.timestamp);
   },
 
-  createPost(post: Post): void {
+  async createPost(post: Post): Promise<void> {
     const posts = this.getAllPosts();
     posts.push(post);
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    // Publish to cloud for real-time global feed
+    await cloudService.publishPost(post);
   },
 
   deletePost(postId: string): void {
