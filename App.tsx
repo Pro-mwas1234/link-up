@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthState, User, AppTab, Chat } from './types';
 import Login from './components/Auth/Login';
 import Discovery from './components/Discovery/Discovery';
@@ -37,6 +37,10 @@ const App: React.FC = () => {
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [typingStatuses, setTypingStatuses] = useState<Record<string, Record<string, boolean>>>({});
   const [chats, setChats] = useState<Chat[]>([]);
+  
+  // Notification State
+  const [toast, setToast] = useState<{ name: string; message: string; avatar: string; chatId: string } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshChats = () => {
     if (authState.user) {
@@ -45,7 +49,6 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // Initial splash screen timeout
     const timer = setTimeout(() => setIsAppLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
@@ -69,6 +72,21 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubMsg = socketService.onMessage(({ chatId, message }) => {
       refreshChats();
+
+      // Show notification if not on chats tab
+      if (activeTab !== 'chats' && authState.user && message.senderId !== authState.user.id) {
+        const sender = storageService.getUserById(message.senderId);
+        if (sender) {
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+          setToast({
+            name: sender.name,
+            message: message.text || (message.media ? 'Sent a media file' : 'New message'),
+            avatar: sender.media[0] || '',
+            chatId: chatId
+          });
+          toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+        }
+      }
     });
 
     const unsubTyping = socketService.onTypingStatus(({ chatId, userId, isTyping }) => {
@@ -86,7 +104,7 @@ const App: React.FC = () => {
       unsubMsg();
       unsubTyping();
     };
-  }, [authState.user]);
+  }, [authState.user, activeTab]);
 
   const handleLogin = (user: User) => {
     localStorage.setItem('linkup_session_userid', user.id);
@@ -138,6 +156,14 @@ const App: React.FC = () => {
     storageService.updateUserProfile(updatedUser.id, updatedUser);
   };
 
+  const handleToastClick = () => {
+    if (toast) {
+      setActiveChatId(toast.chatId);
+      setActiveTab('chats');
+      setToast(null);
+    }
+  };
+
   if (isAppLoading) {
     return <InitialLoader />;
   }
@@ -148,10 +174,26 @@ const App: React.FC = () => {
 
   return (
     <div className="h-[100dvh] w-full bg-slate-950 flex items-center justify-center md:p-4 overflow-hidden">
+      {/* Toast Notification */}
+      {toast && (
+        <div 
+          onClick={handleToastClick}
+          className="fixed top-4 left-4 right-4 md:left-auto md:right-8 md:top-8 md:w-80 z-[200] bg-slate-800/90 backdrop-blur-xl border border-pink-500/30 rounded-2xl p-4 shadow-2xl flex items-center space-x-3 cursor-pointer animate-in slide-in-from-top-full duration-300"
+        >
+          <img src={toast.avatar} className="w-12 h-12 rounded-full object-cover border border-pink-500" alt="" />
+          <div className="flex-1 overflow-hidden">
+            <h4 className="font-bold text-sm text-slate-100">{toast.name}</h4>
+            <p className="text-xs text-slate-400 truncate">{toast.message}</p>
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); setToast(null); }} className="text-slate-500 hover:text-white">
+             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+        </div>
+      )}
+
       {/* Desktop Wrapper App Frame */}
       <div className="flex flex-col h-full w-full md:max-w-md lg:max-w-lg bg-slate-900 md:h-[90dvh] md:rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] relative md:border md:border-slate-800">
         
-        {/* Responsive Header */}
         <header className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-900/90 backdrop-blur-xl z-[40] shrink-0 pt-safe">
           <h1 className="text-2xl font-black bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent italic tracking-tighter">
             LinkUp
@@ -170,7 +212,6 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Main Viewport */}
         <main className="flex-1 overflow-hidden relative bg-slate-900">
           {activeTab === 'discovery' && (
             <Discovery 
@@ -200,13 +241,11 @@ const App: React.FC = () => {
           )}
         </main>
 
-        {/* Navigation - Pinned to bottom, respecting safe areas */}
         <Navigation activeTab={activeTab} onTabChange={(tab) => {
           setActiveTab(tab);
           if (tab !== 'chats') setActiveChatId(null);
         }} />
 
-        {/* Overlay for user profile details */}
         {viewingUser && (
           <div className="absolute inset-0 z-50 flex flex-col bg-slate-900 animate-in slide-in-from-bottom duration-300">
              <div className="absolute top-4 left-4 z-[60]">
