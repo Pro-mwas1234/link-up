@@ -8,10 +8,17 @@ interface ChatListProps {
   currentUser: User;
   initialChats: Chat[];
   typingStatuses: Record<string, Record<string, boolean>>;
+  activeChatId: string | null;
+  setActiveChatId: (id: string | null) => void;
 }
 
-const ChatList: React.FC<ChatListProps> = ({ currentUser, initialChats, typingStatuses }) => {
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+const ChatList: React.FC<ChatListProps> = ({ 
+  currentUser, 
+  initialChats, 
+  typingStatuses, 
+  activeChatId, 
+  setActiveChatId 
+}) => {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   
   const activeChat = initialChats.find(c => c.id === activeChatId);

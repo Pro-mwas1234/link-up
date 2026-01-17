@@ -9,9 +9,10 @@ interface ProfileProps {
   onUpdate: (user: User) => void;
   onLogout: () => void;
   isReadOnly?: boolean;
+  onStartChat?: (user: User) => void;
 }
 
-const Profile: React.FC<ProfileProps> = ({ user, onUpdate, onLogout, isReadOnly = false }) => {
+const Profile: React.FC<ProfileProps> = ({ user, onUpdate, onLogout, isReadOnly = false, onStartChat }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedUser, setEditedUser] = useState<User>(user);
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -161,7 +162,20 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate, onLogout, isReadOnly 
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent" />
         
-        {!isReadOnly && (
+        {isReadOnly ? (
+          <div className="absolute bottom-6 right-6 flex space-x-2 z-20">
+            <button 
+              onClick={() => onStartChat && onStartChat(user)}
+              className="px-6 py-4 bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-full font-bold shadow-2xl active:scale-95 transition-all flex items-center space-x-2 border border-white/20"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+              </svg>
+              <span>Message</span>
+            </button>
+          </div>
+        ) : (
           <div className="absolute bottom-6 right-6 flex space-x-2 z-20">
             <button 
               onClick={() => profilePicInputRef.current?.click()}
