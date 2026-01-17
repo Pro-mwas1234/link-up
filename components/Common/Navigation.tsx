@@ -9,39 +9,39 @@ interface NavigationProps {
 
 const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
   return (
-    <nav className="h-20 bg-slate-900 border-t border-slate-800 flex items-center justify-around px-4 shrink-0 pb-safe">
+    <nav className="h-20 md:h-24 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 flex items-center justify-around px-2 shrink-0 pb-safe z-40">
       <button 
         onClick={() => onTabChange('discovery')}
-        className={`flex flex-col items-center justify-center space-y-1.5 transition-all w-16 ${activeTab === 'discovery' ? 'text-pink-500 scale-110' : 'text-slate-500 hover:text-slate-300'}`}
+        className={`flex flex-col items-center justify-center space-y-1.5 transition-all w-1/4 h-full ${activeTab === 'discovery' ? 'text-pink-500 scale-105' : 'text-slate-500 hover:text-slate-300'}`}
       >
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-        <span className="text-[9px] font-black uppercase tracking-widest leading-none">Discovery</span>
+        <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        <span className="text-[10px] font-black uppercase tracking-tighter leading-none">Discovery</span>
       </button>
 
       <button 
         onClick={() => onTabChange('feed')}
-        className={`flex flex-col items-center justify-center space-y-1.5 transition-all w-16 ${activeTab === 'feed' ? 'text-pink-500 scale-110' : 'text-slate-500 hover:text-slate-300'}`}
+        className={`flex flex-col items-center justify-center space-y-1.5 transition-all w-1/4 h-full ${activeTab === 'feed' ? 'text-pink-500 scale-105' : 'text-slate-500 hover:text-slate-300'}`}
       >
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h10v2H7zm0-3h10v2H7zm0 6h10v2H7z"/></svg>
-        <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feed</span>
+        <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h10v2H7zm0-3h10v2H7zm0 6h10v2H7z"/></svg>
+        <span className="text-[10px] font-black uppercase tracking-tighter leading-none">Feed</span>
       </button>
 
       <button 
         onClick={() => onTabChange('chats')}
-        className={`flex flex-col items-center justify-center space-y-1.5 transition-all w-16 ${activeTab === 'chats' ? 'text-pink-500 scale-110' : 'text-slate-500 hover:text-slate-300'}`}
+        className={`flex flex-col items-center justify-center space-y-1.5 transition-all w-1/4 h-full ${activeTab === 'chats' ? 'text-pink-500 scale-105' : 'text-slate-500 hover:text-slate-300'}`}
       >
         <div className="relative">
-          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+          <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
         </div>
-        <span className="text-[9px] font-black uppercase tracking-widest leading-none">Chat</span>
+        <span className="text-[10px] font-black uppercase tracking-tighter leading-none">Chat</span>
       </button>
 
       <button 
         onClick={() => onTabChange('profile')}
-        className={`flex flex-col items-center justify-center space-y-1.5 transition-all w-16 ${activeTab === 'profile' ? 'text-pink-500 scale-110' : 'text-slate-500 hover:text-slate-300'}`}
+        className={`flex flex-col items-center justify-center space-y-1.5 transition-all w-1/4 h-full ${activeTab === 'profile' ? 'text-pink-500 scale-105' : 'text-slate-500 hover:text-slate-300'}`}
       >
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-        <span className="text-[9px] font-black uppercase tracking-widest leading-none">Profile</span>
+        <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        <span className="text-[10px] font-black uppercase tracking-tighter leading-none">Profile</span>
       </button>
     </nav>
   );

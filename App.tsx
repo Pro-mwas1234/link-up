@@ -10,7 +10,24 @@ import Navigation from './components/Common/Navigation';
 import { socketService } from './services/socketService';
 import { storageService } from './services/storageService';
 
+const InitialLoader: React.FC = () => (
+  <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center">
+    <div className="relative">
+      <div className="absolute inset-0 bg-pink-500 blur-3xl opacity-20 animate-pulse"></div>
+      <h1 className="text-6xl font-black bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 bg-clip-text text-transparent italic tracking-tighter animate-pulse-logo relative z-10">
+        LinkUp
+      </h1>
+    </div>
+    <div className="mt-8 flex space-x-2">
+      <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+      <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+      <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce"></div>
+    </div>
+  </div>
+);
+
 const App: React.FC = () => {
+  const [isAppLoading, setIsAppLoading] = useState(true);
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
     isAuthenticated: false,
@@ -26,6 +43,12 @@ const App: React.FC = () => {
       setChats(storageService.getChatsForUser(authState.user.id));
     }
   };
+
+  useEffect(() => {
+    // Initial splash screen timeout
+    const timer = setTimeout(() => setIsAppLoading(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (authState.isAuthenticated) {
@@ -96,7 +119,6 @@ const App: React.FC = () => {
     if (!authState.user) return;
     const chatId = `chat_${[authState.user.id, targetUser.id].sort().join('_')}`;
     
-    // Create chat if it doesn't exist
     const newChat: Chat = {
       id: chatId,
       participants: [authState.user.id, targetUser.id],
@@ -106,7 +128,6 @@ const App: React.FC = () => {
     storageService.createChat(newChat);
     refreshChats();
 
-    // Navigate to the chat
     setViewingUser(null);
     setActiveChatId(chatId);
     setActiveTab('chats');
@@ -117,14 +138,21 @@ const App: React.FC = () => {
     storageService.updateUserProfile(updatedUser.id, updatedUser);
   };
 
+  if (isAppLoading) {
+    return <InitialLoader />;
+  }
+
   if (!authState.isAuthenticated) {
     return <Login onLogin={handleLogin} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-0 md:p-4">
-      <div className="flex flex-col h-screen md:h-[90vh] w-full md:max-w-md lg:max-w-lg bg-slate-900 md:rounded-[2.5rem] overflow-hidden shadow-2xl relative md:border md:border-slate-800">
-        <header className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md z-10 shrink-0">
+    <div className="h-[100dvh] w-full bg-slate-950 flex items-center justify-center md:p-4 overflow-hidden">
+      {/* Desktop Wrapper App Frame */}
+      <div className="flex flex-col h-full w-full md:max-w-md lg:max-w-lg bg-slate-900 md:h-[90dvh] md:rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] relative md:border md:border-slate-800">
+        
+        {/* Responsive Header */}
+        <header className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-900/90 backdrop-blur-xl z-[40] shrink-0 pt-safe">
           <h1 className="text-2xl font-black bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent italic tracking-tighter">
             LinkUp
           </h1>
@@ -142,7 +170,8 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-hidden relative">
+        {/* Main Viewport */}
+        <main className="flex-1 overflow-hidden relative bg-slate-900">
           {activeTab === 'discovery' && (
             <Discovery 
               currentUser={authState.user!} 
@@ -171,14 +200,16 @@ const App: React.FC = () => {
           )}
         </main>
 
+        {/* Navigation - Pinned to bottom, respecting safe areas */}
         <Navigation activeTab={activeTab} onTabChange={(tab) => {
           setActiveTab(tab);
           if (tab !== 'chats') setActiveChatId(null);
         }} />
 
+        {/* Overlay for user profile details */}
         {viewingUser && (
           <div className="absolute inset-0 z-50 flex flex-col bg-slate-900 animate-in slide-in-from-bottom duration-300">
-             <div className="absolute top-4 left-4 z-20">
+             <div className="absolute top-4 left-4 z-[60]">
                 <button onClick={() => setViewingUser(null)} className="p-3 bg-black/40 backdrop-blur-md text-white rounded-full shadow-lg border border-white/10 active:scale-90 transition-transform">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
