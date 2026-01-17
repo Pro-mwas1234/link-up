@@ -1,6 +1,5 @@
 
 import { User, Chat, Message, Post, Comment } from '../types';
-import { MOCK_USERS } from '../constants';
 import { cloudService } from './cloudService';
 
 const USERS_KEY = 'linkup_db_users';
@@ -17,26 +16,44 @@ export const storageService = {
   // --- INITIALIZATION ---
   init(): void {
     const existing = localStorage.getItem(USERS_KEY);
-    if (!existing || JSON.parse(existing).length === 0) {
-      const initialRecords: RegisteredUserRecord[] = MOCK_USERS.map(u => ({
-        email: `${u.name.toLowerCase()}@example.com`,
-        password: 'password123',
-        user: u
-      }));
-      localStorage.setItem(USERS_KEY, JSON.stringify(initialRecords));
+    if (!existing) {
+      localStorage.setItem(USERS_KEY, JSON.stringify([]));
     }
   },
 
   // --- USER OPERATIONS ---
   registerUser(email: string, password: string, user: User): void {
     const users = this.getAllUsers();
-    users.push({ email, password, user });
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    // Only register if not already present
+    if (!users.some(u => u.email === email)) {
+      users.push({ email, password, user });
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
+  },
+
+  // New: Cache a user found in the cloud so the app knows who they are in chats/feeds
+  cacheCloudUser(user: User): void {
+    const users = this.getAllUsers();
+    const index = users.findIndex(u => u.user.id === user.id);
+    if (index === -1) {
+      users.push({ email: `cloud_${user.id}@linkup.io`, user });
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    } else {
+      users[index].user = user;
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
   },
 
   getAllUsers(): RegisteredUserRecord[] {
     const data = localStorage.getItem(USERS_KEY);
     return data ? JSON.parse(data) : [];
+  },
+
+  // Fix: Added missing getDiscoveryUsers method to resolve error in ChatList.tsx
+  getDiscoveryUsers(excludeUserId: string): User[] {
+    return this.getAllUsers()
+      .map(record => record.user)
+      .filter(user => user.id !== excludeUserId);
   },
 
   getUserById(userId: string): User | null {
@@ -60,10 +77,28 @@ export const storageService = {
     }
   },
 
-  getDiscoveryUsers(currentUserId: string): User[] {
-    return this.getAllUsers()
-      .map(record => record.user)
-      .filter(user => user.id !== currentUserId);
+  // Fix: Added missing exportDatabase method to resolve error in Profile.tsx
+  exportDatabase(): string {
+    const data = {
+      users: localStorage.getItem(USERS_KEY) || '[]',
+      chats: localStorage.getItem(CHATS_KEY) || '[]',
+      posts: localStorage.getItem(POSTS_KEY) || '[]'
+    };
+    return btoa(JSON.stringify(data));
+  },
+
+  // Fix: Added missing importDatabase method to resolve error in Profile.tsx
+  importDatabase(code: string): boolean {
+    try {
+      const data = JSON.parse(atob(code));
+      if (data.users) localStorage.setItem(USERS_KEY, data.users);
+      if (data.chats) localStorage.setItem(CHATS_KEY, data.chats);
+      if (data.posts) localStorage.setItem(POSTS_KEY, data.posts);
+      return true;
+    } catch (e) {
+      console.error("Database import failed", e);
+      return false;
+    }
   },
 
   // --- CHAT OPERATIONS ---
@@ -101,51 +136,18 @@ export const storageService = {
     localStorage.setItem(CHATS_KEY, JSON.stringify(chats));
   },
 
-  // --- DATA TRANSFER (CROSS-DEVICE SYNC) ---
-  exportDatabase(): string {
-    const data = {
-      users: localStorage.getItem(USERS_KEY),
-      chats: localStorage.getItem(CHATS_KEY),
-      posts: localStorage.getItem(POSTS_KEY)
-    };
-    return btoa(encodeURIComponent(JSON.stringify(data)));
-  },
-
-  importDatabase(encodedData: string): boolean {
-    try {
-      const decoded = JSON.parse(decodeURIComponent(atob(encodedData)));
-      if (decoded.users) localStorage.setItem(USERS_KEY, decoded.users);
-      if (decoded.chats) localStorage.setItem(CHATS_KEY, decoded.chats);
-      if (decoded.posts) localStorage.setItem(POSTS_KEY, decoded.posts);
-      return true;
-    } catch (e) {
-      console.error("Import failed", e);
-      return false;
-    }
-  },
-
   // --- POST OPERATIONS ---
   getAllPosts(): Post[] {
     const data = localStorage.getItem(POSTS_KEY);
     return data ? JSON.parse(data) : [];
   },
 
-  getPostsByUser(userId: string): Post[] {
-    return this.getAllPosts().filter(p => p.userId === userId).sort((a, b) => b.timestamp - a.timestamp);
-  },
-
   async createPost(post: Post): Promise<void> {
     const posts = this.getAllPosts();
-    posts.push(post);
+    posts.unshift(post);
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
-    // Publish to cloud for real-time global feed
+    // Crucial: Publish to global cloud relay
     await cloudService.publishPost(post);
-  },
-
-  deletePost(postId: string): void {
-    const posts = this.getAllPosts();
-    const filtered = posts.filter(p => p.id !== postId);
-    localStorage.setItem(POSTS_KEY, JSON.stringify(filtered));
   },
 
   likePost(postId: string, userId: string): void {
